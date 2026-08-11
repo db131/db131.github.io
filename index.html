@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -1557,7 +1556,7 @@ function drawPoster(data) {
   const levels = [6, 4, 3, 2, 1];
   const groups = levels.map(lv => data.rows.filter(r => r.lbc === lv)).filter(g => g.length);
   const cols = 6, colGap = 10;
-  const LCOL = 156, RCOL = CW - LCOL;
+  const LCOL = 110, RCOL = CW - LCOL; // 首列加窄
   const colW = Math.floor((RCOL - 24 - (cols - 1) * colGap) / cols);
   const stockX0 = MX + LCOL + 12;
   const gridW = cols * colW + (cols - 1) * colGap;
@@ -1569,14 +1568,15 @@ function drawPoster(data) {
   const totalRows = gridRows.length;
   const gapPx = 3;
   const titleBlockH = 120, footerH = 84;
+  const tableGap = 29; // 表格与标题区之间的额外间距：让表格到上下两条免责声明的距离相等(约40px)
   let rowH = Math.floor((H - titleBlockH - footerH - 150) / totalRows);
   rowH = Math.max(84, Math.min(108, rowH));
   const contentTableH = 48 + totalRows * rowH + 3 * groups.length + gapPx * (groups.length - 1) + 8;
-  const totalH = titleBlockH + contentTableH + footerH + 34;
+  const totalH = titleBlockH + tableGap + contentTableH + footerH + 10;
   const yOff = Math.max(24, Math.round((H - totalH) / 2));
   const titleY = yOff + 46;
   const discY = yOff + 102;
-  const tableTop = yOff + titleBlockH;
+  const tableTop = yOff + titleBlockH + tableGap;
   const bodyTop = tableTop + 48;
   const bodyBottom = bodyTop + contentTableH - 48;
 
@@ -1603,7 +1603,6 @@ function drawPoster(data) {
   ctx.fillText("名称", MX + LCOL + RCOL / 2, tableTop + 24);
   ctx.textAlign = "left";
   ctx.fillStyle = WHITE; ctx.fillRect(MX, bodyTop, CW, bodyBottom - bodyTop);
-  ctx.fillStyle = TINT; ctx.fillRect(MX + 1, bodyTop, LCOL, bodyBottom - bodyTop);
 
   let yy = bodyTop + 2;
   for (let gi = 0; gi < groups.length; gi++) {
@@ -1611,10 +1610,10 @@ function drawPoster(data) {
     const grp = groups[gi];
     const nRows = Math.ceil(grp.length / cols);
     const cellH = nRows * rowH + 3;
-    ctx.fillStyle = RED; ctx.textAlign = "center";
+    ctx.fillStyle = DARK; ctx.textAlign = "center";
     ctx.font = f(27, true);
     ctx.fillText(lv === 1 ? "首板" : lv + "板", MX + LCOL / 2, yy + cellH / 2 - 12);
-    ctx.font = f(14, true); ctx.fillStyle = "#C77C7C";
+    ctx.font = f(14, true); ctx.fillStyle = "#6E5E4C";
     ctx.fillText(grp.length + "只", MX + LCOL / 2, yy + cellH / 2 + 20);
     ctx.textAlign = "left";
     for (let i = 0; i < grp.length; i++) {
