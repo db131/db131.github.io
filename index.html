@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -354,7 +355,7 @@
       <div class="s-progress show" id="pProgress"><div class="bar"><i id="pProgressBar"></i></div><span id="pProgressText">准备中…</span></div>
     </div>
     <div class="poster-wrap">
-      <div class="poster-canvas-box"><canvas id="posterCanvas" width="1080" height="1920"></canvas></div>
+      <div class="poster-canvas-box"><canvas id="posterCanvas" width="1080" height="1680"></canvas></div>
       <div class="poster-tip">点击「下载图片」保存 1080×1920 高清 PNG，可直接发布抖音图文/短视频封面。</div>
     </div>
   </section>
@@ -1049,10 +1050,10 @@ async function ensureHot(force){
   Hot.ready = true;
   renderHot();
 }
-async function ulistGet(secids, fields = "f2,f3,f12,f14"){
+async function ulistGet(secids, fields = "f2,f3,f12,f14", extra = ""){
   const hosts = ["https://push2delay.eastmoney.com", "https://push2.eastmoney.com"];
   for (const h of hosts) {
-    try { return await fetchJson(`${h}/api/qt/ulist.np/get?secids=${encodeURIComponent(secids)}&fields=${fields}`); } catch (e) {}
+    try { return await fetchJson(`${h}/api/qt/ulist.np/get?secids=${encodeURIComponent(secids)}&fields=${fields}${extra ? "&" + extra : ""}`); } catch (e) {}
   }
   return null;
 }
@@ -1492,11 +1493,34 @@ async function buildPosterData() {
     if (refClose >= maxHigh) r.attrs.push({ label: "百日新高" });
   }, 10, (d, n) => setPProgress(true, "计算百日新高 " + d + "/" + n + "…", 15 + (d / n) * 70));
   const sealRate = ztCount + zbCount ? ztCount / (ztCount + zbCount) * 100 : 0;
-  // 概念统计(基于涨停原因归类)
-  const cnt = {};
-  rows.forEach(r => { const th = matchThemes(r.reason)[0] || "其他"; cnt[th] = (cnt[th] || 0) + 1; });
+  // 概念统计 + 8大行业归类
+  const IND8 = [
+    ["医药", ["医药","创新药","CRO","GLP-1","减肥药","药品","临床","生物","制药","医疗","疫苗","中药","医美","医械","单抗","CAR-T","重组蛋白","药店"]],
+    ["科技", ["算力","AI","人工智能","半导体","芯片","存储","光刻","数据中心","服务器","光模块","6G","软件","信创","国产","华为","鸿蒙","量子","消费电子","云计算","大模型","IDC","PCB","MLCC","被动元件"]],
+    ["消费", ["消费","白酒","食品","饮料","零售","免税","旅游","酒店","家电","服装","乳业","影视","传媒","游戏","母婴","教育","珠宝","院线","餐饮"]],
+    ["制造", ["机器人","人形机器人","汽车","智驾","无人驾驶","机械","设备","军工","航天","航空","船舶","工业母机","减速器","伺服","电池","光伏","风电","储能","充电桩","电力设备","零部件","一体化压铸","热管理"]],
+    ["能源材料", ["石油","煤炭","有色","稀土","化工","钢铁","建材","黄金","贵金属","锂矿","铜","铝","钨","钛","油气","天然气","染料","造纸"]],
+    ["基建地产", ["基建","水利","建筑","工程","地产","房地产","城投","市政","水泥","路桥","园林"]],
+    ["金融", ["银行","券商","保险","金融","证券","期货","信托"]],
+    ["其他", []]
+  ];
+  function industryOf(reason) {
+    const t = reason || "";
+    for (const g of IND8) if (g[1].some(k => t.indexOf(k) >= 0)) return g[0];
+    return "其他";
+  }
+  const cnt = {}, indCnt = {};
+  rows.forEach(r => {
+    const th = matchThemes(r.reason)[0] || "其他";
+    cnt[th] = (cnt[th] || 0) + 1;
+    const ind = industryOf(r.reason);
+    indCnt[ind] = (indCnt[ind] || 0) + 1;
+  });
   const stats = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
-  return { today: useDate, ztCount, zbCount, maxLbc: rows.length ? rows[0].lbc : 0, sealRate, rows, stats };
+  const industries = Object.entries(indCnt).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+  const oi = industries.findIndex(x => x.name === "其他");
+  if (oi >= 0) industries.push(industries.splice(oi, 1)[0]);
+  return { today: useDate, ztCount, zbCount, maxLbc: rows.length ? rows[0].lbc : 0, sealRate, rows, stats, industries };
 }
 
 function fmtTimeP(t) {
@@ -1508,13 +1532,13 @@ function fmtTimeP(t) {
 function drawPoster(data) {
   const cv = document.getElementById("posterCanvas");
   const ctx = cv.getContext("2d");
-  const W = 1080, H = 1920;
+  const W = 1080, H = 1680; // 裁剪上下空白，更紧凑的竖版比例
   const FONT = '"PingFang SC","Microsoft YaHei","Heiti SC",sans-serif';
   const f = (px, bold) => (bold ? "bold " : "") + px + "px " + FONT;
   const BG = "#FFF9EF", DARK = "#3A2410", RED = "#C62828", RED_D = "#B71C1C",
         ORANGE = "#E65100", GOLD = "#F9A825", GOLD_D = "#E8961E",
         TINT = "#FDEBEA", MUTED = "#9A8A70", WHITE = "#FFFFFF", BROWN = "#8D6E63",
-        LINE = RED;
+        GREEN = "#2E7D32", LINE = RED;
   const truncate = (text, maxW) => {
     if (ctx.measureText(text).width <= maxW) return text;
     let t = text;
@@ -1529,108 +1553,95 @@ function drawPoster(data) {
   const yyyy = data.today.slice(0, 4), mm = +data.today.slice(4, 6), dd = +data.today.slice(6, 8);
   const week = "日一二三四五六"[new Date(yyyy, mm - 1, dd).getDay()];
 
+  /* ===== 布局: 垂直居中, 上下留白 ===== */
+  const levels = [6, 4, 3, 2, 1];
+  const groups = levels.map(lv => data.rows.filter(r => r.lbc === lv)).filter(g => g.length);
+  const cols = 6, colGap = 10;
+  const LCOL = 156, RCOL = CW - LCOL;
+  const colW = Math.floor((RCOL - 24 - (cols - 1) * colGap) / cols);
+  const stockX0 = MX + LCOL + 12;
+  const gridW = cols * colW + (cols - 1) * colGap;
+  const gridRows = [];
+  for (const g of groups) {
+    const nRows = Math.ceil(g.length / cols);
+    for (let r = 0; r < nRows; r++) gridRows.push({ lv: g[0].lbc, cnt: Math.min(cols, g.length - r * cols) });
+  }
+  const totalRows = gridRows.length;
+  const gapPx = 3;
+  const titleBlockH = 120, footerH = 84;
+  let rowH = Math.floor((H - titleBlockH - footerH - 150) / totalRows);
+  rowH = Math.max(84, Math.min(108, rowH));
+  const contentTableH = 48 + totalRows * rowH + 3 * groups.length + gapPx * (groups.length - 1) + 8;
+  const totalH = titleBlockH + contentTableH + footerH + 34;
+  const yOff = Math.max(24, Math.round((H - totalH) / 2));
+  const titleY = yOff + 46;
+  const discY = yOff + 102;
+  const tableTop = yOff + titleBlockH;
+  const bodyTop = tableTop + 48;
+  const bodyBottom = bodyTop + contentTableH - 48;
+
   /* ===== 标题 ===== */
   const dateStr = mm + "月" + dd + "日 周" + week;
-  ctx.font = f(72, true);
+  ctx.font = "900 72px " + FONT;
   const w1 = ctx.measureText(dateStr).width;
   const w2 = ctx.measureText("涨停梯队").width;
   const totalW = w1 + 28 + w2;
   const startX = (W - totalW) / 2;
   ctx.fillStyle = GOLD_D;
-  ctx.fillText(dateStr, startX, 58);
+  ctx.fillText(dateStr, startX, titleY);
   ctx.fillStyle = RED;
-  ctx.fillText("涨停梯队", startX + w1 + 28, 58);
-  let y = 120;
-
-  /* ===== 今日热点 + 免责声明 ===== */
-  const statsAll = [...data.stats.filter(x => x[0] !== "其他"), ...data.stats.filter(x => x[0] === "其他")];
-  const disc = "⚠ 数据根据公开资料整理，仅供参考，不构成投资建议";
-  ctx.font = f(17, true);
-  let tx = MX, ty = y;
-  const rows = [{ y: ty, endX: MX - 12 }];
-  for (const item of statsAll.slice(0, 16)) {
-    const label = item[0] + " " + item[1];
-    const wd = ctx.measureText(label).width + 32;
-    if (tx + wd > W - MX - 10) { tx = MX; ty += 34; rows.push({ y: ty, endX: MX - 12 }); }
-    ctx.fillStyle = ORANGE; ctx.fillText("●", tx, ty + 8);
-    ctx.fillStyle = DARK; ctx.fillText(label, tx + 20, ty + 8);
-    rows[rows.length - 1].endX = tx + wd;
-    tx += wd + 10;
-  }
-  ctx.font = f(15, false);
-  const discW = ctx.measureText(disc).width;
-  const lastRow = rows[rows.length - 1];
-  ctx.fillStyle = MUTED;
-  if (lastRow.endX + 28 + discW <= W - MX) {
-    ctx.textAlign = "right"; ctx.fillText(disc, W - MX, lastRow.y + 8); ctx.textAlign = "left";
-    y = ty + 40;
-  } else {
-    ty += 36; ctx.textAlign = "right"; ctx.fillText(disc, W - MX, ty + 8); ctx.textAlign = "left";
-    y = ty + 40;
-  }
+  ctx.fillText("涨停梯队", startX + w1 + 28, titleY);
+  ctx.textAlign = "center";
+  ctx.font = f(14, false); ctx.fillStyle = MUTED;
+  ctx.fillText("数据根据公开资料整理，仅供参考，不构成投资建议", W / 2, discY);
+  ctx.textAlign = "left";
 
   /* ===== 表格 ===== */
-  const LCOL = 158, RCOL = CW - LCOL;
-  const tableTop = y;
-  const bodyTop = tableTop + 50;
-  const bodyBottom = H - 92;
-  ctx.fillStyle = RED; ctx.fillRect(MX, tableTop, CW, 50);
+  ctx.fillStyle = RED; ctx.fillRect(MX, tableTop, CW, 48);
   ctx.fillStyle = WHITE; ctx.textAlign = "center"; ctx.font = f(23, true);
-  ctx.fillText("梯队", MX + LCOL / 2, tableTop + 25);
-  ctx.fillText("名称", MX + LCOL + RCOL / 2, tableTop + 25);
+  ctx.fillText("梯队", MX + LCOL / 2, tableTop + 24);
+  ctx.fillText("名称", MX + LCOL + RCOL / 2, tableTop + 24);
   ctx.textAlign = "left";
   ctx.fillStyle = WHITE; ctx.fillRect(MX, bodyTop, CW, bodyBottom - bodyTop);
-  // 首列: 底色铺到列分隔线(贴紧, 无留空), 上下贯通
   ctx.fillStyle = TINT; ctx.fillRect(MX + 1, bodyTop, LCOL, bodyBottom - bodyTop);
 
-  const levels = [6, 4, 3, 2, 1];
-  const groups = levels.map(lv => data.rows.filter(r => r.lbc === lv)).filter(g => g.length);
-  const cols = 6, colGap = 10;
-  const colW = Math.floor((RCOL - 24 - (cols - 1) * colGap) / cols);
-  const totalRows = groups.reduce((n, g) => n + Math.ceil(g.length / cols), 0);
-  const gapPx = 8;
-  const bodyH = bodyBottom - bodyTop;
-  let rowH = Math.floor((bodyH - 12 - 6 * groups.length - gapPx * (groups.length - 1)) / totalRows);
-  rowH = Math.max(88, Math.min(150, rowH));
-  const contentH = totalRows * rowH + 6 * groups.length + gapPx * (groups.length - 1);
-  const offsetY = Math.max(4, Math.round((bodyH - contentH) / 2));
-
-  let yy = bodyTop + offsetY;
+  let yy = bodyTop + 2;
   for (let gi = 0; gi < groups.length; gi++) {
     const lv = groups[gi][0].lbc;
     const grp = groups[gi];
     const nRows = Math.ceil(grp.length / cols);
-    const cellH = nRows * rowH + 6;
+    const cellH = nRows * rowH + 3;
     ctx.fillStyle = RED; ctx.textAlign = "center";
-    ctx.font = f(28, true);
-    ctx.fillText(lv === 1 ? "首板" : lv + "板", MX + LCOL / 2, yy + cellH / 2 - 14);
+    ctx.font = f(27, true);
+    ctx.fillText(lv === 1 ? "首板" : lv + "板", MX + LCOL / 2, yy + cellH / 2 - 12);
     ctx.font = f(14, true); ctx.fillStyle = "#C77C7C";
-    ctx.fillText(grp.length + "只", MX + LCOL / 2, yy + cellH / 2 + 22);
+    ctx.fillText(grp.length + "只", MX + LCOL / 2, yy + cellH / 2 + 20);
     ctx.textAlign = "left";
-    const x0 = MX + LCOL + 12;
     for (let i = 0; i < grp.length; i++) {
       const r = grp[i];
-      const col = i % cols, row = Math.floor(i / cols);
-      const x = x0 + col * (colW + colGap);
-      const cy = yy + 6 + row * rowH;
+      const row = Math.floor(i / cols), col = i % cols;
+      const rowCnt = Math.min(cols, grp.length - row * cols);
+      const rowW = rowCnt * colW + (rowCnt - 1) * colGap;
+      const x = stockX0 + Math.round((gridW - rowW) / 2) + col * (colW + colGap);
+      const cy = yy + 2 + row * rowH;
       const ccx = x + colW / 2;
       ctx.textAlign = "center";
-      ctx.font = f(21, true); ctx.fillStyle = DARK;
-      ctx.fillText(r.n, ccx, cy + rowH * 0.30);
-      ctx.font = f(13, true); ctx.fillStyle = RED;
-      ctx.fillText(truncate(r.reason || "", colW - 8), ccx, cy + rowH * 0.55);
-      const attrY = cy + rowH * 0.78;
+      ctx.font = f(24, true); ctx.fillStyle = DARK;
+      ctx.fillText(r.n, ccx, cy + rowH * 0.27);
+      ctx.font = f(14, true); ctx.fillStyle = RED;
+      ctx.fillText(truncate(r.reason || "", colW - 8), ccx, cy + rowH * 0.49);
+      const attrY = cy + rowH * 0.71;
       let totalW = 0;
-      for (const a of r.attrs) { ctx.font = f(11, true); totalW += ctx.measureText(a.label).width + 14; }
+      for (const a of r.attrs) { ctx.font = f(12, true); totalW += ctx.measureText(a.label).width + 15; }
       if (r.attrs.length) totalW += (r.attrs.length - 1) * 4;
       let ax = ccx - totalW / 2;
       for (const a of r.attrs) {
-        ctx.font = f(11, true);
+        ctx.font = f(12, true);
         const label = a.label;
         const wd = ctx.measureText(label).width + 12;
         const color = label === "一字" ? RED : (label === "回封" ? BROWN : (label.indexOf("百日新高") >= 0 ? ORANGE : GOLD_D));
-        ctx.fillStyle = color; ctx.fillRect(ax, attrY - 8, wd, 18);
-        ctx.fillStyle = WHITE; ctx.fillText(label, ax + wd / 2, attrY + 1);
+        ctx.fillStyle = color; ctx.fillRect(ax, attrY - 9, wd, 19);
+        ctx.fillStyle = WHITE; ctx.fillText(label, ax + wd / 2, attrY);
         ax += wd + 4;
       }
       ctx.textAlign = "left";
@@ -1643,26 +1654,24 @@ function drawPoster(data) {
     }
   }
 
-  /* ===== 框线: 最后统一绘制, 连续不断 ===== */
+  /* ===== 框线 ===== */
   ctx.strokeStyle = LINE; ctx.lineWidth = 2;
-  // 外框(整圈连续)
   ctx.strokeRect(MX, tableTop, CW, bodyBottom - tableTop);
-  // 列分隔线: 从表头下到表体底, 上下贯通无中断
   ctx.beginPath(); ctx.moveTo(MX + LCOL + 1, bodyTop); ctx.lineTo(MX + LCOL + 1, bodyBottom); ctx.stroke();
 
   /* ===== 底部 ===== */
-  ctx.fillStyle = BG; ctx.fillRect(0, H - 88, W, 88);
+  const footY = yOff + totalH - footerH + 10;
   ctx.fillStyle = MUTED; ctx.font = f(15, false); ctx.textAlign = "center";
-  ctx.fillText("风险提示：内容根据公开资料整理，仅供参考，不构成投资建议，历史表现不代表未来走势", W / 2, H - 54);
+  ctx.fillText("风险提示：内容根据公开资料整理，仅供参考，不构成投资建议，历史表现不代表未来走势", W / 2, footY + 26);
   ctx.fillStyle = RED; ctx.font = f(16, true);
-  ctx.fillText("关注我 · 每个交易日收盘后更新涨停梯队", W / 2, H - 28);
+  ctx.fillText("关注我 · 每个交易日收盘后更新涨停梯队", W / 2, footY + 52);
   ctx.textAlign = "left";
 
   /* ===== 水印 ===== */
   ctx.save();
   ctx.globalAlpha = 0.045;
   ctx.fillStyle = RED;
-  ctx.font = f(66, true);
+  ctx.font = f(64, true);
   ctx.translate(W / 2, H / 2);
   ctx.rotate(-Math.PI / 6);
   for (let r = -2; r <= 2; r++) for (let c = -3; c <= 3; c++) {
