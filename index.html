@@ -1455,7 +1455,7 @@ async function buildPosterData() {
       const r = reasons.get(x.c);
       const zbc = x.zbc || 0, fbt = x.fbt;
       const attrs = [];
-      if (fbt === 92500 && zbc === 0) attrs.push({ label: "一字" });
+      if (fbt >= 92500 && fbt < 93000 && zbc === 0) attrs.push({ label: "一字" });
       if (zbc >= 1) attrs.push({ label: "回封" });
       const zt = x.zttj || {};
       if (zt.ct >= 2 && zt.days > zt.ct) attrs.push({ label: zt.days + "日" + zt.ct + "板" });
@@ -1533,7 +1533,8 @@ function drawPoster(data) {
   const cv = document.getElementById("posterCanvas");
   const ctx = cv.getContext("2d");
   const W = 1080, H = 1680; // 裁剪上下空白，更紧凑的竖版比例
-  const FONT = '"PingFang SC","Microsoft YaHei","Heiti SC",sans-serif';
+  const FONT = '"PingFang SC","Microsoft YaHei","Heiti SC",sans-serif';        // 正文：苹方
+  const TITLE_FONT = '"STHeiti","Heiti SC","PingFang SC","Microsoft YaHei",sans-serif'; // 标题：黑体
   const f = (px, bold) => (bold ? "bold " : "") + px + "px " + FONT;
   const BG = "#FFF9EF", DARK = "#3A2410", RED = "#C62828", RED_D = "#B71C1C",
         ORANGE = "#E65100", GOLD = "#F9A825", GOLD_D = "#E8961E",
@@ -1577,14 +1578,15 @@ function drawPoster(data) {
   const contentTableH = 48 + totalRows * rowH + 3 * groups.length + gapPx * (groups.length - 1) + 8;
   const totalH = titleBlockH + tableGap + contentTableH + footerH + 10;
   const yOff = Math.max(8, Math.round((H - totalH) / 2));
-  const titleY = yOff + 54;
   const tableTop = yOff + titleBlockH + tableGap;
+  // 标题中心 = 画布上边沿与表格上边沿的中点，保证标题到上边沿和到表格的距离一致
+  const titleY = Math.round(tableTop / 2);
   const bodyTop = tableTop + 48;
   const bodyBottom = bodyTop + contentTableH - 48;
 
   /* ===== 标题 ===== */
   const dateStr = mm + "月" + dd + "日 周" + week;
-  ctx.font = "900 84px " + FONT;
+  ctx.font = "900 84px " + TITLE_FONT;
   const w1 = ctx.measureText(dateStr).width;
   const w2 = ctx.measureText("涨停梯队").width;
   const totalW = w1 + 28 + w2;
@@ -1629,18 +1631,28 @@ function drawPoster(data) {
       ctx.font = f(14, true); ctx.fillStyle = RED;
       ctx.fillText(truncate(r.reason || "", colW - 8), ccx, cy + rowH * 0.49);
       const attrY = cy + rowH * 0.71;
+      // 属性徽章：3个及以上时总宽可能超出单元格，自动收缩字号/内边距/间距，避免与相邻列重叠
+      const maxAttrW = colW - 6;
+      let afs = 12, apad = 12, agap = 4;
+      const attrList = r.attrs;
       let totalW = 0;
-      for (const a of r.attrs) { ctx.font = f(12, true); totalW += ctx.measureText(a.label).width + 15; }
-      if (r.attrs.length) totalW += (r.attrs.length - 1) * 4;
+      for (let t = 0; t < 5; t++) {
+        ctx.font = f(afs, true);
+        totalW = attrList.reduce((s, a) => s + ctx.measureText(a.label).width + apad + agap, 0) - (attrList.length ? agap : 0);
+        if (totalW <= maxAttrW) break;
+        if (afs > 10) afs--;
+        else if (apad > 6) apad -= 2;
+        else agap = Math.max(1, agap - 1);
+      }
+      ctx.font = f(afs, true);
       let ax = ccx - totalW / 2;
-      for (const a of r.attrs) {
-        ctx.font = f(12, true);
+      for (const a of attrList) {
         const label = a.label;
-        const wd = ctx.measureText(label).width + 12;
+        const wd = ctx.measureText(label).width + apad;
         const color = label === "一字" ? RED : (label === "回封" ? BROWN : (label.indexOf("百日新高") >= 0 ? ORANGE : GOLD_D));
         ctx.fillStyle = color; ctx.fillRect(ax, attrY - 9, wd, 19);
         ctx.fillStyle = WHITE; ctx.fillText(label, ax + wd / 2, attrY);
-        ax += wd + 4;
+        ax += wd + agap;
       }
       ctx.textAlign = "left";
     }
