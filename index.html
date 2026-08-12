@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -1553,7 +1554,9 @@ function drawPoster(data) {
   const week = "日一二三四五六"[new Date(yyyy, mm - 1, dd).getDay()];
 
   /* ===== 布局: 垂直居中, 上下留白 ===== */
-  const levels = [6, 4, 3, 2, 1];
+  // 动态生成全部连板梯队(最高板→首板)，确保 5/6/7/8/9...及以上板都被记录
+  const maxLbc = data.rows.length ? Math.max(...data.rows.map(r => r.lbc)) : 1;
+  const levels = Array.from({ length: maxLbc }, (_, i) => maxLbc - i);
   const groups = levels.map(lv => data.rows.filter(r => r.lbc === lv)).filter(g => g.length);
   const cols = 6, colGap = 10;
   const LCOL = 110, RCOL = CW - LCOL; // 首列加窄
@@ -1567,22 +1570,21 @@ function drawPoster(data) {
   }
   const totalRows = gridRows.length;
   const gapPx = 3;
-  const titleBlockH = 120, footerH = 84;
-  const tableGap = 29; // 表格与标题区之间的额外间距：让表格到上下两条免责声明的距离相等(约40px)
+  const titleBlockH = 108, footerH = 84;
+  const tableGap = 26; // 标题区与表格之间的间距(与表格到页脚间距一致)
   let rowH = Math.floor((H - titleBlockH - footerH - 150) / totalRows);
-  rowH = Math.max(84, Math.min(108, rowH));
+  rowH = Math.max(68, Math.min(108, rowH)); // 极端大行情(多梯队/多首板)时行高下限降低，保证不溢出
   const contentTableH = 48 + totalRows * rowH + 3 * groups.length + gapPx * (groups.length - 1) + 8;
   const totalH = titleBlockH + tableGap + contentTableH + footerH + 10;
-  const yOff = Math.max(24, Math.round((H - totalH) / 2));
-  const titleY = yOff + 46;
-  const discY = yOff + 102;
+  const yOff = Math.max(8, Math.round((H - totalH) / 2));
+  const titleY = yOff + 54;
   const tableTop = yOff + titleBlockH + tableGap;
   const bodyTop = tableTop + 48;
   const bodyBottom = bodyTop + contentTableH - 48;
 
   /* ===== 标题 ===== */
   const dateStr = mm + "月" + dd + "日 周" + week;
-  ctx.font = "900 72px " + FONT;
+  ctx.font = "900 84px " + FONT;
   const w1 = ctx.measureText(dateStr).width;
   const w2 = ctx.measureText("涨停梯队").width;
   const totalW = w1 + 28 + w2;
@@ -1591,9 +1593,6 @@ function drawPoster(data) {
   ctx.fillText(dateStr, startX, titleY);
   ctx.fillStyle = RED;
   ctx.fillText("涨停梯队", startX + w1 + 28, titleY);
-  ctx.textAlign = "center";
-  ctx.font = f(14, false); ctx.fillStyle = MUTED;
-  ctx.fillText("数据根据公开资料整理，仅供参考，不构成投资建议", W / 2, discY);
   ctx.textAlign = "left";
 
   /* ===== 表格 ===== */
