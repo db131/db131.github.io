@@ -432,6 +432,14 @@ async function fetchJson(url, ms = 10000) {
   } finally { clearTimeout(timer); }
 }
 
+/* ============ 涨停过滤 ============ */
+// 剔除"从未真正封住"的涨停：首次封板时间在收盘集合竞价时刻(15:00)才挂上，
+// 说明盘中从未封住、收盘价恰好挂在涨停价（涨停价上仍有大量卖单），不算封板（如 开开实业）
+function filterSealed(pool) {
+  if (!Array.isArray(pool)) return [];
+  return pool.filter(x => !((x.fbt || 0) >= 150000));
+}
+
 /* ============ 状态 ============ */
 const state = {
   date: shYMD(), selected: shYMD(), initialDate: shYMD(),
@@ -461,10 +469,10 @@ async function loadPools(date) {
       else setBanner("当前非交易日或数据源暂无数据。可切换日期查看历史涨停数据。", "info");
       renderAll(); return;
     }
-    state.zt = zt.data.pool || [];
+    state.zt = filterSealed(zt.data.pool || []);
     state.zb = (zb.data && zb.data.pool) || [];
     state.dt = (dt.data && dt.data.pool) || [];
-    state.tc = { zt: zt.data.tc ?? state.zt.length, zb: zb.data?.tc ?? state.zb.length, dt: dt.data?.tc ?? state.dt.length };
+    state.tc = { zt: state.zt.length, zb: zb.data?.tc ?? state.zb.length, dt: dt.data?.tc ?? state.dt.length };
     state.failed = false;
     if (!state.zt.length) {
       const now = shNow();
@@ -492,7 +500,10 @@ async function findPrevTradingDay(date, max = 12) {
   for (let i = 0; i < max; i++) {
     try {
       const j = await fetchJson(API.zt(d));
-      if (j.data && Array.isArray(j.data.pool)) return { date: d, pool: j.data.pool };
+      if (j.data && Array.isArray(j.data.pool)) {
+        const fp = filterSealed(j.data.pool);
+        if (fp.length) return { date: d, pool: fp };
+      }
     } catch (e) { /* ignore */ }
     d = addDays(d, -1);
   }
@@ -936,11 +947,11 @@ async function prepareBase(){
   const last5 = done.slice(-5);
   const pools = {};
   for (const d of last5) {
-    try { const j = await fetchJson(API.zt(d)); pools[d] = new Map(((j && j.data && j.data.pool) || []).map(x => [x.c, x])); }
+    try { const j = await fetchJson(API.zt(d)); pools[d] = new Map(filterSealed((j && j.data && j.data.pool) || []).map(x => [x.c, x])); }
     catch (e) { pools[d] = new Map(); }
   }
   let todayMap = new Map();
-  try { const j = await fetchJson(API.zt(today)); todayMap = new Map(((j && j.data && j.data.pool) || []).map(x => [x.c, x])); } catch (e) {}
+  try { const j = await fetchJson(API.zt(today)); todayMap = new Map(filterSealed((j && j.data && j.data.pool) || []).map(x => [x.c, x])); } catch (e) {}
   SCREENER.last5 = last5; SCREENER.pools = pools;
   SCREENER.todayLimit = todayMap;
   SCREENER.yestLimit = pools[last5[last5.length - 1]] || new Map();
@@ -1449,9 +1460,10 @@ async function buildPosterData() {
   const reasons = new Map(ths.info.map(x => [x.code, x]));
   let rows, ztCount, zbCount;
   if (em && em.pool.length) {
-    ztCount = em.pool.length;
+    const sealedPool = filterSealed(em.pool);
+    ztCount = sealedPool.length;
     try { const jb = await fetchJson(API.zb(useDate)); zbCount = ((jb && jb.data && jb.data.pool) || []).length; } catch (e) { zbCount = 0; }
-    rows = em.pool.map(x => {
+    rows = sealedPool.map(x => {
       const r = reasons.get(x.c);
       const zbc = x.zbc || 0, fbt = x.fbt;
       const attrs = [];
@@ -1611,10 +1623,11 @@ function drawPoster(data) {
     const grp = groups[gi];
     const nRows = Math.ceil(grp.length / cols);
     const cellH = nRows * rowH + 3;
+    const lvF = rowH >= 84 ? 27 : 22, cntF = rowH >= 84 ? 14 : 12;
     ctx.fillStyle = DARK; ctx.textAlign = "center";
-    ctx.font = f(27, true);
+    ctx.font = f(lvF, true);
     ctx.fillText(lv === 1 ? "首板" : lv + "板", MX + LCOL / 2, yy + cellH / 2 - 12);
-    ctx.font = f(14, true); ctx.fillStyle = "#6E5E4C";
+    ctx.font = f(cntF, true); ctx.fillStyle = "#6E5E4C";
     ctx.fillText(grp.length + "只", MX + LCOL / 2, yy + cellH / 2 + 20);
     ctx.textAlign = "left";
     for (let i = 0; i < grp.length; i++) {
@@ -1626,21 +1639,31 @@ function drawPoster(data) {
       const cy = yy + 2 + row * rowH;
       const ccx = x + colW / 2;
       ctx.textAlign = "center";
-      ctx.font = f(24, true); ctx.fillStyle = DARK;
-      ctx.fillText(r.n, ccx, cy + rowH * 0.27);
-      ctx.font = f(14, true); ctx.fillStyle = RED;
-      ctx.fillText(truncate(r.reason || "", colW - 8), ccx, cy + rowH * 0.49);
-      const attrY = cy + rowH * 0.71;
-      // 属性徽章：3个及以上时总宽可能超出单元格，自动收缩字号/内边距/间距，避免与相邻列重叠
+      // 随行高自适应：行越矮字号/徽章越小，纵向按内容总高居中排布，保证任何数量下不重叠
+      const nameF = rowH >= 100 ? 24 : (rowH >= 84 ? 22 : 20);
+      const reasonF = rowH >= 100 ? 14 : (rowH >= 84 ? 13 : 12);
+      const badgeF = Math.max(10, reasonF - 1);
+      const badgeH = rowH >= 100 ? 19 : (rowH >= 84 ? 17 : 16);
+      const gap = 4;
+      const contentH = nameF + gap + reasonF + gap + badgeH;
+      const top = Math.max(4, (rowH - contentH) / 2);
+      const nameY = cy + top + nameF / 2;
+      const reasonY = cy + top + nameF + gap + reasonF / 2;
+      const attrY = cy + top + nameF + gap + reasonF + gap + badgeH / 2;
+      ctx.font = f(nameF, true); ctx.fillStyle = DARK;
+      ctx.fillText(r.n, ccx, nameY);
+      ctx.font = f(reasonF, true); ctx.fillStyle = RED;
+      ctx.fillText(truncate(r.reason || "", colW - 8), ccx, reasonY);
+      // 属性徽章：总宽超出单元格时再自动收缩字号/内边距/间距，避免与相邻列重叠
       const maxAttrW = colW - 6;
-      let afs = 12, apad = 12, agap = 4;
+      let afs = badgeF, apad = 10, agap = 4;
       const attrList = r.attrs;
       let totalW = 0;
       for (let t = 0; t < 5; t++) {
         ctx.font = f(afs, true);
         totalW = attrList.reduce((s, a) => s + ctx.measureText(a.label).width + apad + agap, 0) - (attrList.length ? agap : 0);
         if (totalW <= maxAttrW) break;
-        if (afs > 10) afs--;
+        if (afs > 9) afs--;
         else if (apad > 6) apad -= 2;
         else agap = Math.max(1, agap - 1);
       }
@@ -1650,7 +1673,7 @@ function drawPoster(data) {
         const label = a.label;
         const wd = ctx.measureText(label).width + apad;
         const color = label === "一字" ? RED : (label === "回封" ? BROWN : (label.indexOf("百日新高") >= 0 ? ORANGE : GOLD_D));
-        ctx.fillStyle = color; ctx.fillRect(ax, attrY - 9, wd, 19);
+        ctx.fillStyle = color; ctx.fillRect(ax, attrY - badgeH / 2, wd, badgeH);
         ctx.fillStyle = WHITE; ctx.fillText(label, ax + wd / 2, attrY);
         ax += wd + agap;
       }
