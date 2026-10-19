@@ -239,6 +239,48 @@
 #posterCanvas{display:block;width:100%;height:auto}
 .poster-tip{font-size:12.5px;color:var(--dim);text-align:center}
 
+/* ============ 板块 MACD 多空状态 ============ */
+#macdView[hidden]{display:none}
+.macd-sub{display:flex;flex-wrap:wrap;gap:4px 18px;margin-top:8px;font-size:12px;color:var(--muted)}
+.macd-sub b{color:var(--text);font-weight:600}
+.macd-dist{display:flex;height:13px;border-radius:7px;overflow:hidden;background:var(--bg2);border:1px solid var(--border);margin-top:14px}
+.macd-dist i{display:block;height:100%;transition:width .45s ease}
+.macd-dist-lbl{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:9px}
+@media (max-width:760px){.macd-dist-lbl{grid-template-columns:1fr 1fr}}
+.macd-dist-lbl div{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);min-width:0}
+.macd-dist-lbl em{width:9px;height:9px;border-radius:2px;flex:none;display:inline-block}
+.macd-dist-lbl b{color:var(--text);font-variant-numeric:tabular-nums;margin-left:auto}
+.macd-chips{display:flex;flex-wrap:wrap;gap:6px}
+.macd-chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel);border:1px solid var(--border);border-radius:999px;padding:4px 11px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none;transition:.15s}
+.macd-chip:hover{color:var(--text);border-color:var(--dim)}
+.macd-chip.active{color:var(--text);border-color:var(--blue);background:var(--blue-bg)}
+.macd-chip .n{font-variant-numeric:tabular-nums;font-weight:700}
+.mbadge{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11.5px;font-weight:700;border:1px solid transparent;white-space:nowrap}
+.mbadge.m1{color:var(--red);background:var(--red-bg);border-color:rgba(242,54,69,.35)}
+.mbadge.m2{color:var(--orange);background:var(--orange-bg);border-color:rgba(247,147,26,.35)}
+.mbadge.m3{color:#22d3ee;background:rgba(34,211,238,.10);border-color:rgba(34,211,238,.32)}
+.mbadge.m4{color:var(--green);background:var(--green-bg);border-color:rgba(14,203,129,.35)}
+.mbadge.m0{color:var(--muted);background:rgba(139,151,168,.12);border-color:rgba(139,151,168,.25)}
+.macd-spark{display:block;margin:0 auto}
+@media (max-width:1250px){
+  #macdTable th:nth-child(6),#macdTable td:nth-child(6),
+  #macdTable th:nth-child(8),#macdTable td:nth-child(8),
+  #macdTable th:nth-child(9),#macdTable td:nth-child(9){display:none}
+}
+.macd-rank-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+@media (max-width:900px){.macd-rank-grid{grid-template-columns:1fr}}
+.macd-rank-row{display:flex;align-items:center;gap:8px;padding:5px 2px;border-bottom:1px solid var(--border);font-size:12.5px}
+.macd-rank-row:last-child{border-bottom:none}
+.macd-rank-row .rk{flex:none;width:17px;height:17px;border-radius:5px;background:var(--bg2);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:700}
+.macd-rank-row .rk.top{background:var(--red-bg);color:var(--red)}
+.macd-rank-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.macd-rank-row .bar{flex:none;width:88px;height:6px;background:var(--bg2);border-radius:3px;overflow:hidden}
+.macd-rank-row .bar i{display:block;height:100%;border-radius:3px;min-width:2px}
+.macd-rank-row .v{flex:none;width:58px;text-align:right;font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:11.5px}
+.macd-note{font-size:11.5px;color:var(--dim);line-height:1.9;margin-top:16px;border-top:1px solid var(--border);padding-top:12px}
+.macd-note b{color:var(--muted);font-weight:600}
+.macd-note .dot{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+
 </style>
 </head>
 <body>
@@ -250,6 +292,7 @@
       <span>A股涨停板统计<small>今日涨停 · 炸板 · 跌停 · 连板梯队</small></span>
     </div>
     <div class="mode-switch" id="modeSwitch">
+      <button class="mode-btn" data-mode="macd">📉 板块MACD</button>
       <button class="mode-btn active" data-mode="zt">📊 涨停统计</button>
       <button class="mode-btn" data-mode="scr">🎯 每日选股</button>
       <button class="mode-btn" data-mode="poster">🖼️ 复盘海报</button>
@@ -360,10 +403,64 @@
     </div>
   </section>
 
+  <section id="macdView" hidden>
+    <div class="s-title">📉 同花顺一级行业 MACD 多空状态 <span class="tag" id="macdDateTag">-</span></div>
+    <div class="macd-sub">
+      <span>数据源：同花顺行业指数（<b>90 个一级行业</b>）</span>
+      <span>指标：<b>MACD(12,26,9)</b>，柱体 = (DIF − DEA) × 2</span>
+      <span>判定：<b>柱体正负</b> + <b>相对上一交易日变化</b></span>
+    </div>
+    <div class="s-toolbar">
+      <button class="s-btn primary" id="macdRunBtn"><span class="spin">⟳</span> 刷新板块数据</button>
+      <div class="s-progress" id="macdProgress"><div class="bar"><i id="macdProgressBar"></i></div><span id="macdProgressText">准备中…</span></div>
+    </div>
+    <div class="s-meta" id="macdMeta"></div>
+
+    <div class="s-cards" id="macdCards" hidden></div>
+
+    <div class="macd-dist" id="macdDist"></div>
+    <div class="macd-dist-lbl" id="macdDistLbl"></div>
+
+    <div class="s-table-wrap">
+      <div class="s-toolbar2">
+        <input type="search" id="macdSearch" placeholder="🔍 搜索行业 / 代码">
+        <div class="macd-chips" id="macdChips"></div>
+        <span style="margin-left:auto;color:var(--dim);font-size:12px" id="macdTableInfo"></span>
+      </div>
+      <div style="max-height:660px;overflow:auto">
+        <table id="macdTable">
+          <thead id="macdThead"></thead>
+          <tbody id="macdTbody"><tr><td colspan="12" class="empty">点击「刷新板块数据」加载 90 个一级行业…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="macd-rank-grid">
+      <div class="hot-panel">
+        <h4>🚀 动能环比改善 TOP8 <span class="cnt">按 MACD 柱环比变动排序</span></h4>
+        <div id="macdUpRank"><div class="ladder-empty">暂无数据</div></div>
+      </div>
+      <div class="hot-panel">
+        <h4>⚠️ 动能环比走弱 TOP8 <span class="cnt">按 MACD 柱环比变动排序</span></h4>
+        <div id="macdDownRank"><div class="ladder-empty">暂无数据</div></div>
+      </div>
+    </div>
+
+    <div class="macd-note">
+      <b>状态定义：</b>
+      <span class="dot" style="background:#f23645"></span>多头增强 = MACD柱 &gt; 0，且较上一交易日<b>放大</b>；
+      <span class="dot" style="background:#f7931a"></span>多头减弱 = MACD柱 &gt; 0，且较上一交易日<b>缩小</b>；
+      <span class="dot" style="background:#22d3ee"></span>空头减弱 = MACD柱 &lt; 0，且较上一交易日<b>收敛</b>（负值变大）；
+      <span class="dot" style="background:#0ecb81"></span>空头增强 = MACD柱 &lt; 0，且较上一交易日<b>扩张</b>（负值变小）。
+      <br>
+      <b>计算说明：</b>基于同花顺行业指数最近 140 个交易日的收盘价，DIF = EMA12 − EMA26，DEA = EMA9(DIF)，MACD 柱 = (DIF − DEA) × 2；仅统计与最新交易日同步的板块。行情数据仅供参考，不构成投资建议。
+    </div>
+  </section>
+
   <div class="updated" id="updated"></div>
   <footer>
-    数据来源：东方财富公开行情接口（push2ex / push2），行情仅供参考，不构成投资建议。<br>
-    本页面打开即自动按今日日期刷新，交易日盘中每 3 分钟自动更新，可切换日期回看历史涨停数据。
+    数据来源：东方财富公开行情接口（push2ex / push2）、同花顺行业指数（d.10jqka.com.cn），行情仅供参考，不构成投资建议。<br>
+    本页面打开即自动按今日日期刷新，交易日盘中每 3 分钟自动更新，可切换日期回看历史涨停数据；「板块MACD」按最新交易日计算。
   </footer>
 </main>
 
@@ -1365,10 +1462,18 @@ function switchMode(m){
   $("#ztView").hidden = m !== "zt";
   $("#screenerView").hidden = m !== "scr";
   $("#posterView").hidden = m !== "poster";
+  $("#macdView").hidden = m !== "macd";
   if (m === "poster") { if (!POSTER.data) runPoster(); }
   if (m === "scr") {
     if (!SCREENER.lastRun) runScreener();
     else { renderScreener(); if (!Hot.ready) ensureHot(false); }
+  }
+  if (m === "macd") {
+    if (!MACD.loaded) runMacdView();
+    else {
+      renderMacdAll();
+      if (MACD.lastRun && Date.now() - MACD.lastRun.getTime() > 5 * 60 * 1000) runMacdView(true);
+    }
   }
 }
 
@@ -1746,6 +1851,420 @@ function downloadPoster() {
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }, "image/png");
 }
+
+/* =====================================================
+   同花顺一级行业 MACD 多空状态
+   ===================================================== */
+/* 同花顺 90 个一级行业指数（代码 881xxx，数据源 d.10jqka.com.cn） */
+const THS_IND = [
+  ["881101","种植业与林业"],["881102","养殖业"],["881103","农产品加工"],["881105","煤炭开采加工"],
+  ["881107","油气开采及服务"],["881108","化学原料"],["881109","化学制品"],["881112","钢铁"],
+  ["881114","金属新材料"],["881115","建筑材料"],["881116","建筑装饰"],["881117","通用设备"],
+  ["881118","专用设备"],["881121","半导体"],["881122","光学光电子"],["881123","其他电子"],
+  ["881124","消费电子"],["881125","汽车整车"],["881126","汽车零部件"],["881128","汽车服务及其他"],
+  ["881129","通信设备"],["881130","计算机设备"],["881131","白色家电"],["881132","黑色家电"],
+  ["881133","饮料制造"],["881134","食品加工制造"],["881135","纺织制造"],["881136","服装家纺"],
+  ["881137","造纸"],["881138","包装印刷"],["881139","家居用品"],["881140","化学制药"],
+  ["881141","中药"],["881142","生物制品"],["881143","医药商业"],["881144","医疗器械"],
+  ["881145","电力"],["881146","燃气"],["881148","港口航运"],["881149","公路铁路运输"],
+  ["881151","机场航运"],["881152","物流"],["881153","房地产"],["881155","银行"],
+  ["881156","保险"],["881157","证券"],["881158","零售"],["881159","贸易"],
+  ["881160","旅游及酒店"],["881162","通信服务"],["881164","文化传媒"],["881165","综合"],
+  ["881166","军工装备"],["881167","非金属材料"],["881168","工业金属"],["881169","贵金属"],
+  ["881170","小金属"],["881171","自动化设备"],["881172","电子化学品"],["881173","小家电"],
+  ["881174","厨卫电器"],["881175","医疗服务"],["881177","互联网电商"],["881178","教育"],
+  ["881179","其他社会服务"],["881180","石油加工贸易"],["881181","环境治理"],["881182","美容护理"],
+  ["881263","农化制品"],["881264","化学纤维"],["881265","塑料制品"],["881266","橡胶制品"],
+  ["881267","能源金属"],["881268","工程机械"],["881269","轨交设备"],["881270","元件"],
+  ["881271","IT服务"],["881272","软件开发"],["881273","白酒"],["881274","影视院线"],
+  ["881275","游戏"],["881276","军工电子"],["881277","电机"],["881278","电网设备"],
+  ["881279","光伏设备"],["881280","风电设备"],["881281","电池"],["881282","其他电源设备"],
+  ["881283","多元金融"],["881284","环保设备"]
+];
+
+const MACD_CATS = [
+  { key:"bull+", name:"多头增强", cls:"m1", color:"#f23645", desc:"MACD柱>0 且较前一日放大" },
+  { key:"bull-", name:"多头减弱", cls:"m2", color:"#f7931a", desc:"MACD柱>0 且较前一日缩小" },
+  { key:"bear-", name:"空头减弱", cls:"m3", color:"#22d3ee", desc:"MACD柱<0 且较前一日收敛" },
+  { key:"bear+", name:"空头增强", cls:"m4", color:"#0ecb81", desc:"MACD柱<0 且较前一日扩张" }
+];
+const MACD_CAT_MAP = new Map(MACD_CATS.map(c => [c.key, c]));
+const MACD_LOOKBACK = 140; // 统一取最近 140 个交易日，避免不同数据接口的 EMA 起点差异
+const MACD = {
+  rows: [], loaded: false, running: false, lastRun: null, latest: "", failed: 0,
+  q: "", cat: "", sort: { k: "cat", d: 1 }
+};
+
+/* ---------- 指标计算 ---------- */
+function emaSeries(vals, k) {
+  const m = 2 / (k + 1);
+  let e = vals[0];
+  const out = [e];
+  for (let i = 1; i < vals.length; i++) { e = vals[i] * m + e * (1 - m); out.push(e); }
+  return out;
+}
+function macdSeriesOf(closes) {
+  const e12 = emaSeries(closes, 12), e26 = emaSeries(closes, 26);
+  const dif = closes.map((_, i) => e12[i] - e26[i]);
+  const dea = emaSeries(dif, 9);
+  const hist = dif.map((v, i) => (v - dea[i]) * 2);
+  return { dif, dea, hist };
+}
+function macdCatOf(hist, prev) {
+  const eps = 1e-9;
+  if (hist > eps) return hist > prev + eps ? "bull+" : (hist < prev - eps ? "bull-" : "flat");
+  if (hist < -eps) return hist > prev + eps ? "bear-" : (hist < prev - eps ? "bear+" : "flat");
+  return "flat";
+}
+function catOrder(k) {
+  const i = MACD_CATS.findIndex(c => c.key === k);
+  return i < 0 ? 9 : i;
+}
+
+/* ---------- 数据获取（同花顺行业指数 JSONP） ---------- */
+async function fetchThsJsonp(url, tries = 3) {
+  let lastErr = null;
+  for (let t = 0; t < tries; t++) {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 12000);
+    try {
+      const r = await fetch(url, { signal: ctl.signal, cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const txt = await r.text();
+      const a = txt.indexOf("("), b = txt.lastIndexOf(")");
+      if (a < 0 || b <= a) throw new Error("返回格式异常");
+      return JSON.parse(txt.slice(a + 1, b));
+    } catch (e) { lastErr = e; }
+    finally { clearTimeout(timer); }
+    await sleep(300 * (t + 1));
+  }
+  throw lastErr || new Error("请求失败");
+}
+/* 年度接口的收盘数据与实时行情一致，作为主数据源；last.js 仅作兜底 */
+function fetchThsIndexLine(code) {
+  return fetchThsJsonp(`https://d.10jqka.com.cn/v6/line/48_${code}/01/last.js`, 3);
+}
+function fetchThsYearLine(code, year) {
+  return fetchThsJsonp(`https://d.10jqka.com.cn/v6/line/48_${code}/01/${year}.js`, 4);
+}
+function parseThsBars(j) {
+  const recs = String((j && j.data) || "").split(";");
+  const out = [];
+  for (const rec of recs) {
+    if (!rec) continue;
+    const a = rec.split(",");
+    if (a.length < 5) continue;
+    const date = a[0], close = +a[4];
+    if (!/^\d{8}$/.test(date) || !isFinite(close) || close <= 0) continue;
+    out.push({ date, close });
+  }
+  out.sort((x, y) => x.date < y.date ? -1 : x.date > y.date ? 1 : 0);
+  return out;
+}
+async function loadThsBars(code) {
+  const year = shYMD().slice(0, 4);
+  let j = null, bars = [];
+  try {
+    j = await fetchThsYearLine(code, year);
+    bars = parseThsBars(j);
+  } catch (e) { /* 继续尝试其他来源 */ }
+  // 年初或新板块当年 K 线不足时，合并上一年度补齐指标计算窗口
+  if (bars.length < MACD_LOOKBACK) {
+    try {
+      const pj = await fetchThsYearLine(code, String(+year - 1));
+      const merged = new Map(parseThsBars(pj).map(b => [b.date, b]));
+      bars.forEach(b => merged.set(b.date, b));
+      bars = [...merged.values()].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+      if (!j) j = pj;
+    } catch (e) { /* ignore */ }
+  }
+  if (bars.length < 35) {
+    try {
+      const lj = await fetchThsIndexLine(code);
+      const lb = parseThsBars(lj);
+      if (lb.length >= bars.length) { bars = lb; j = lj; }
+    } catch (e) { /* ignore */ }
+  }
+  return { j, bars };
+}
+function buildMacdRowFromBars(code, name, bars) {
+  if (bars.length < 35) return null;
+  const use = bars.slice(-MACD_LOOKBACK);
+  const closes = use.map(b => b.close);
+  const { dif, dea, hist } = macdSeriesOf(closes);
+  const n = closes.length;
+  const cat = macdCatOf(hist[n - 1], hist[n - 2]);
+  let streak = 1;
+  for (let i = n - 2; i >= 1; i--) {
+    if (macdCatOf(hist[i], hist[i - 1]) === cat) streak++;
+    else break;
+  }
+  return {
+    code, name,
+    close: closes[n - 1], pct: (closes[n - 1] / closes[n - 2] - 1) * 100,
+    hist: hist[n - 1], prev: hist[n - 2], chg: hist[n - 1] - hist[n - 2],
+    dif: dif[n - 1], dea: dea[n - 1], cat, streak,
+    spark: hist.slice(-30), date: use[n - 1].date, stale: false
+  };
+}
+async function refreshStaleMacdRow(row) {
+  const { j, bars } = await loadThsBars(row.code);
+  return buildMacdRowFromBars(row.code, (j && j.name) || row.name, bars);
+}
+function showMacdProgress(show, text, pct) {
+  const w = $("#macdProgress");
+  w.classList.toggle("show", !!show);
+  if (text) $("#macdProgressText").textContent = text;
+  if (pct != null) $("#macdProgressBar").style.width = Math.max(0, Math.min(100, pct)) + "%";
+}
+async function runMacdView(force) {
+  if (MACD.running) return;
+  MACD.running = true;
+  const btn = $("#macdRunBtn");
+  btn.classList.add("spinning"); btn.disabled = true;
+  showMacdProgress(true, "正在获取 90 个同花顺一级行业指数…", 1);
+  let done = 0;
+  try {
+    const results = await pMap(THS_IND, async ind => {
+      try {
+        const { j, bars } = await loadThsBars(ind[0]);
+        return buildMacdRowFromBars(ind[0], (j && j.name) || ind[1], bars);
+      } finally {
+        done++;
+        showMacdProgress(true, `正在拉取行业指数 ${done}/${THS_IND.length}…`, Math.round(done / THS_IND.length * 100));
+      }
+    }, 6);
+    // 个别请求可能被同花顺接口限流，对失败项再做一轮低频重试
+    const missing = results.map((r, i) => r ? -1 : i).filter(i => i >= 0);
+    if (missing.length) {
+      showMacdProgress(true, `正在重试 ${missing.length} 个失败的行业…`, 96);
+      await sleep(500);
+      await pMap(missing, async i => {
+        try {
+          const { j, bars } = await loadThsBars(THS_IND[i][0]);
+          results[i] = buildMacdRowFromBars(THS_IND[i][0], (j && j.name) || THS_IND[i][1], bars);
+        } catch (e) { /* 保持失败 */ }
+      }, 3);
+    }
+    const rows = results.filter(Boolean);
+    MACD.failed = THS_IND.length - rows.length;
+    if (!rows.length) {
+      MACD.rows = []; MACD.loaded = false; MACD.lastRun = new Date(); MACD.latest = "";
+      renderMacdAll();
+      setBanner("板块 MACD 数据获取失败：同花顺行业指数接口无响应，请稍后重试。", "error");
+      return;
+    }
+    let latest = rows.reduce((m, r) => r.date > m ? r.date : m, "");
+    // last.js 的部分 CDN 节点会慢一天，用年度接口把滞后板块校准到同一交易日
+    const stale = rows.filter(r => r.date !== latest);
+    if (stale.length) {
+      showMacdProgress(true, `正在校准 ${stale.length} 个时序滞后的行业…`, 97);
+      await pMap(stale, async r => {
+        try {
+          const fixed = await refreshStaleMacdRow(r);
+          if (fixed && fixed.date > r.date) {
+            const i = rows.findIndex(x => x.code === r.code);
+            if (i >= 0) rows[i] = fixed;
+          }
+        } catch (e) { /* 保留滞后数据 */ }
+      }, 4);
+      latest = rows.reduce((m, r) => r.date > m ? r.date : m, "");
+    }
+    rows.forEach(r => { r.stale = r.date !== latest; });
+    MACD.latest = latest;
+    MACD.rows = rows;
+    MACD.loaded = true;
+    MACD.lastRun = new Date();
+    setBanner("");
+    renderMacdAll();
+  } catch (e) {
+    console.error(e);
+    setBanner("板块 MACD 运行出错：" + (e && e.message ? e.message : e), "error");
+  } finally {
+    MACD.running = false;
+    btn.classList.remove("spinning"); btn.disabled = false;
+    showMacdProgress(false);
+  }
+}
+
+/* ---------- 渲染 ---------- */
+function macdFresh() { return MACD.rows.filter(r => !r.stale); }
+function macdDateLabel(ymd) {
+  if (!ymd) return "暂无数据";
+  const y = +ymd.slice(0, 4), m = +ymd.slice(4, 6), d = +ymd.slice(6, 8);
+  const wk = "日一二三四五六"[new Date(y, m - 1, d).getDay()];
+  return `${fmtYMD(ymd)} 周${wk}`;
+}
+function renderMacdAll() {
+  renderMacdMeta(); renderMacdCards(); renderMacdDist();
+  renderMacdChips(); renderMacdTable(); renderMacdRanks();
+}
+function renderMacdMeta() {
+  const rows = macdFresh();
+  const stale = MACD.rows.length - rows.length;
+  $("#macdDateTag").textContent = MACD.latest ? macdDateLabel(MACD.latest) : "暂无数据";
+  if (!MACD.lastRun) {
+    $("#macdMeta").textContent = "首次进入自动加载 90 个同花顺一级行业指数，约需 3~8 秒。";
+    return;
+  }
+  const items = [
+    `最新交易日：<b style="color:var(--text)">${MACD.latest ? fmtYMD(MACD.latest) : "—"}</b>`,
+    `覆盖：<b style="color:var(--text)">${rows.length}</b> / ${THS_IND.length} 个行业`,
+    MACD.failed ? `获取失败：${MACD.failed} 个` : "",
+    stale ? `非同步板块：${stale} 个` : "",
+    `更新时间：${MACD.lastRun.toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}`
+  ].filter(Boolean);
+  $("#macdMeta").innerHTML = items.map(s => `<span>${s}</span>`).join("");
+}
+function renderMacdCards() {
+  const el = $("#macdCards"), rows = macdFresh();
+  if (!rows.length) { el.hidden = true; el.innerHTML = ""; return; }
+  el.hidden = false;
+  const cnt = k => rows.filter(r => r.cat === k).length;
+  const bulls = rows.filter(r => r.hist > 0).length;
+  const bears = rows.filter(r => r.hist < 0).length;
+  const avgChg = k => {
+    const a = rows.filter(r => r.cat === k);
+    return a.length ? a.reduce((s, r) => s + r.chg, 0) / a.length : 0;
+  };
+  const fmtChg = v => (v > 0 ? "+" : "") + v.toFixed(2);
+  el.innerHTML =
+    sCard("覆盖行业", rows.length, `同花顺一级行业 · ${fmtYMD(MACD.latest)}`, "blue") +
+    sCard("多头增强", cnt("bull+"), `MACD&gt;0 柱体放大 · 均变动 ${fmtChg(avgChg("bull+"))}`, "red") +
+    sCard("多头减弱", cnt("bull-"), `MACD&gt;0 柱体缩小 · 均变动 ${fmtChg(avgChg("bull-"))}`, "orange") +
+    sCard("空头减弱", cnt("bear-"), `MACD&lt;0 柱体收敛 · 均变动 ${fmtChg(avgChg("bear-"))}`, "blue") +
+    sCard("空头增强", cnt("bear+"), `MACD&lt;0 柱体扩张 · 均变动 ${fmtChg(avgChg("bear+"))}`, "green") +
+    sCard("多空比", `${bulls} : ${bears}`, `多头板块占比 ${(bulls / (rows.length || 1) * 100).toFixed(0)}%`, bulls >= bears ? "red" : "green");
+}
+function renderMacdDist() {
+  const rows = macdFresh(), total = rows.length || 1;
+  $("#macdDist").innerHTML = MACD_CATS.map(c => {
+    const n = rows.filter(r => r.cat === c.key).length;
+    return n ? `<i style="width:${(n / total * 100).toFixed(2)}%;background:${c.color}" title="${c.name} ${n} 个"></i>` : "";
+  }).join("");
+  $("#macdDistLbl").innerHTML = MACD_CATS.map(c => {
+    const n = rows.filter(r => r.cat === c.key).length;
+    return `<div><em style="background:${c.color}"></em>${c.name}<b>${n} 个 · ${(n / total * 100).toFixed(0)}%</b></div>`;
+  }).join("");
+}
+function renderMacdChips() {
+  const rows = macdFresh();
+  const all = `<div class="macd-chip${MACD.cat ? "" : " active"}" data-cat=""><span>全部</span><span class="n">${rows.length}</span></div>`;
+  $("#macdChips").innerHTML = all + MACD_CATS.map(c => {
+    const n = rows.filter(r => r.cat === c.key).length;
+    return `<div class="macd-chip${MACD.cat === c.key ? " active" : ""}" data-cat="${c.key}" title="${c.desc}">
+      <em style="width:8px;height:8px;border-radius:2px;background:${c.color};display:inline-block"></em>
+      <span>${c.name}</span><span class="n">${n}</span></div>`;
+  }).join("");
+}
+function macdRows() {
+  let rows = macdFresh().slice();
+  if (MACD.q) {
+    const q = MACD.q.toLowerCase();
+    rows = rows.filter(r => r.code.includes(q) || r.name.toLowerCase().includes(q));
+  }
+  if (MACD.cat) rows = rows.filter(r => r.cat === MACD.cat);
+  const s = MACD.sort;
+  rows.sort((a, b) => {
+    if (s.k === "name") return a.name.localeCompare(b.name, "zh") * s.d;
+    let va, vb;
+    if (s.k === "cat") { va = catOrder(a.cat); vb = catOrder(b.cat); }
+    else { va = a[s.k]; vb = b[s.k]; }
+    const r = va < vb ? -1 : va > vb ? 1 : 0;
+    const tie = s.k === "cat" ? (b.chg - a.chg) : a.name.localeCompare(b.name, "zh");
+    return r * s.d || tie;
+  });
+  return rows;
+}
+const MACD_COLS = [
+  ["", "#"], ["name", "行业"], ["close", "指数"], ["pct", "涨跌幅"],
+  ["hist", "MACD柱"], ["prev", "前一日"], ["chg", "环比变动"],
+  ["dif", "DIF"], ["dea", "DEA"], ["streak", "连续"], ["spark", "近30日MACD柱"], ["cat", "状态"]
+];
+function renderMacdTable() {
+  const rows = macdRows();
+  const s = MACD.sort;
+  const arrow = k => k === s.k ? `<span class="arrow">${s.d === -1 ? "▼" : "▲"}</span>` : "";
+  $("#macdThead").innerHTML = `<tr>` + MACD_COLS.map(([k, label]) => {
+    const no = k === "" || k === "spark";
+    return `<th data-k="${k}" ${no ? 'style="cursor:default"' : ""}>${label} ${arrow(k)}</th>`;
+  }).join("") + `</tr>`;
+  $("#macdTbody").innerHTML = rows.map((r, i) => macdRowHtml(r, i)).join("")
+    || `<tr><td colspan="${MACD_COLS.length}" class="empty">${MACD.rows.length ? "没有符合条件的数据" : (MACD.lastRun ? "暂无数据，请点击「刷新板块数据」重试" : "正在加载行业指数…")}</td></tr>`;
+  $("#macdTableInfo").textContent = `共 ${rows.length} 个行业（筛选后）`;
+}
+function macdRowHtml(r, i) {
+  const c = MACD_CAT_MAP.get(r.cat) || { name: "多空持平", cls: "m0", color: "#8b97a8", desc: "MACD柱与前一日持平" };
+  const fmt2 = v => (v > 0 ? "+" : "") + v.toFixed(2);
+  const cls = v => v > 1e-9 ? "up" : v < -1e-9 ? "down" : "flat";
+  const idx = r.close.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return `<tr>
+    <td class="num" style="color:var(--dim)">${i + 1}</td>
+    <td><a class="name" href="https://q.10jqka.com.cn/thshy/detail/code/${r.code}/" target="_blank" rel="noopener">${esc(r.name)}</a> <span class="code">${r.code}</span></td>
+    <td class="num">${idx}</td>
+    <td class="num ${pctCls(r.pct)}">${r.pct > 0 ? "+" : ""}${r.pct.toFixed(2)}%</td>
+    <td class="num ${cls(r.hist)}">${fmt2(r.hist)}</td>
+    <td class="num" style="color:var(--muted)">${fmt2(r.prev)}</td>
+    <td class="num ${cls(r.chg)}">${fmt2(r.chg)}</td>
+    <td class="num ${cls(r.dif)}">${fmt2(r.dif)}</td>
+    <td class="num ${cls(r.dea)}">${fmt2(r.dea)}</td>
+    <td class="num" style="color:${c.color}">${r.streak}日</td>
+    <td>${sparkSvg(r.spark, c.color)}</td>
+    <td><span class="mbadge ${c.cls}" title="${c.desc}">${c.name}</span></td>
+  </tr>`;
+}
+function sparkSvg(vals, color) {
+  const w = 118, h = 30, pad = 2;
+  if (!vals || vals.length < 2) return `<span style="color:var(--dim)">—</span>`;
+  let mn = Math.min(0, ...vals), mx = Math.max(0, ...vals);
+  if (mx - mn < 1e-9) { mn -= 1; mx += 1; }
+  const x = i => pad + i * (w - 2 * pad) / (vals.length - 1);
+  const y = v => h - pad - (v - mn) / (mx - mn) * (h - 2 * pad);
+  const pts = vals.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const zy = y(0).toFixed(1);
+  const lx = x(vals.length - 1).toFixed(1), ly = y(vals[vals.length - 1]).toFixed(1);
+  return `<svg class="macd-spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">
+    <line x1="${pad}" y1="${zy}" x2="${w - pad}" y2="${zy}" stroke="#3a4557" stroke-width="1" stroke-dasharray="2 2"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${lx}" cy="${ly}" r="2.2" fill="${color}"/>
+  </svg>`;
+}
+function renderMacdRanks() {
+  const rows = macdFresh();
+  const up = rows.slice().sort((a, b) => b.chg - a.chg).slice(0, 8);
+  const down = rows.slice().sort((a, b) => a.chg - b.chg).slice(0, 8);
+  const maxAbs = Math.max(1e-9, ...rows.map(r => Math.abs(r.chg)));
+  const html = arr => arr.map((r, i) => {
+    const c = MACD_CAT_MAP.get(r.cat) || { color: "#8b97a8" };
+    return `<div class="macd-rank-row">
+      <span class="rk${i < 3 ? " top" : ""}">${i + 1}</span>
+      <span class="nm" title="${esc(r.name)}">${esc(r.name)}</span>
+      <span class="bar"><i style="width:${Math.max(2, Math.abs(r.chg) / maxAbs * 100)}%;background:${c.color}"></i></span>
+      <span class="v ${r.chg > 0 ? "up" : "down"}">${r.chg > 0 ? "+" : ""}${r.chg.toFixed(2)}</span>
+    </div>`;
+  }).join("");
+  $("#macdUpRank").innerHTML = up.length ? html(up) : `<div class="ladder-empty">暂无数据</div>`;
+  $("#macdDownRank").innerHTML = down.length ? html(down) : `<div class="ladder-empty">暂无数据</div>`;
+}
+
+/* ---------- 事件绑定 ---------- */
+$("#macdRunBtn").addEventListener("click", () => runMacdView(true));
+$("#macdSearch").addEventListener("input", e => { MACD.q = e.target.value.trim(); renderMacdTable(); });
+document.addEventListener("click", e => {
+  const chip = e.target.closest("#macdChips .macd-chip");
+  if (chip) {
+    MACD.cat = chip.dataset.cat || "";
+    renderMacdChips(); renderMacdTable();
+    return;
+  }
+  const th = e.target.closest("#macdThead th[data-k]");
+  if (th && th.dataset.k && th.dataset.k !== "spark") {
+    const k = th.dataset.k;
+    if (MACD.sort.k === k) MACD.sort.d = -MACD.sort.d;
+    else { MACD.sort.k = k; MACD.sort.d = (k === "name") ? 1 : (k === "cat" ? 1 : -1); }
+    renderMacdTable();
+  }
+});
 
 /* ============ 初始化 ============ */
 (function init() {
